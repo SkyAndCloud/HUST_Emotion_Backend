@@ -1,17 +1,17 @@
 from flask import Flask, request, render_template
-import requests, os, werkzeug, json
+import requests, os, werkzeug, json, time
 from PIL import Image, ImageDraw
 from pymongo import MongoClient
 from time import clock
 from bson.objectid import ObjectId
 
 app = Flask(__name__)
-UPLOAD_FOLDER='/tmp/image'
+UPLOAD_FOLDER='/root/image'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 basedir = os.path.abspath(os.path.dirname(__file__))
 ALLOWED_EXTENSIONS = set(['png','jpg','JPG','PNG'])
 
-client = MongoClient('0.0.0.0', 27017)
+client = MongoClient('127.0.0.1')
 db = client.get_database('emotion')
 collection = db.get_collection('recognizer')
 
@@ -19,7 +19,7 @@ result_json = """
 {
     "code": %d,
     "msg": "%s",
-    "data": %s,
+    "face": %s,
     "time": %f
 }
 """
@@ -34,25 +34,28 @@ def allowed_file(filename):
 @app.route('/share/<document_id>')
 def share(document_id):
     document = collection.find_one({"_id":ObjectId(document_id)})
-    return render_template('comment.html', path = document['raw'])
+    return render_template('static/comment.html', path = document['raw']) if not document else 'hello'
 
 @app.route('/recognize', methods=['POST'])
 def recognize():
     if request.method == 'POST':
         file = request.files['file']
         if file and allowed_file(file.filename):
-            filename = werkzeug.secure_filename(file.filename)
+            filename = time.strftime('%Y-%m-%d_%H:%M:%S_',time.localtime(time.time())) + werkzeug.secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
-            url = 'https://westus.api.cognitive.microsoft.com/emotion/v1.0/recognize'
+            url = 'https://westus.api.cognitive.microsoft.com/face/v1.0/detect'
             headers = {
                 # Request headers
                 'Content-Type': 'application/octet-stream',
-                'Ocp-Apim-Subscription-Key': 'e0c9c04217f54ff59033de4a0ebd59bb',
+                'Ocp-Apim-Subscription-Key': '4a73eb2727a7496eb0d9e264d782f6ad',
+            }
+            params = {
+                'returnFaceAttributes': 'age,gender,emotion'
             }
             src = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             start_time = clock()
-            r = requests.post(url, headers = headers, data=open(src, 'rb'))
+            r = requests.post(url, headers = headers, data=open(src, 'rb'), params=params)
             end_time = clock()
 
             if r.status_code == 200:
@@ -63,7 +66,7 @@ def recognize():
                 paint.rectangle([(rectangle['left'], rectangle['top']), (rectangle['left'] + rectangle['width'], rectangle['top'] + rectangle['height'])])
                 des = os.path.join(app.config['UPLOAD_FOLDER'], 'res_' + filename)
                 f.save(des, 'JPEG')
-                id = collection.insert({
+                row_id = collection.insert({
                     'raw': src,
                     'res': des,
                     'time': ((end_time - start_time)),
@@ -74,7 +77,7 @@ def recognize():
                     "angry": 0,
                     "fear": 0
                 })
-                return result_json % (ok_code, id, r.text, float(end_time - start_time))
+                return result_json % (ok_code, row_id, json.dumps((json_dict[0])), float(end_time - start_time))
             elif r.status_code == 429:
                 # size too big
                 return result_json % (size_code, '', '', -1)
@@ -83,5 +86,5 @@ def recognize():
                 return result_json % (error_code, '', '', -1)
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=5000)
 
