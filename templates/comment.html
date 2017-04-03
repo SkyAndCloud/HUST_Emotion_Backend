@@ -1,2 +1,40 @@
-<!doctype html>
-<img width="100%" src={{path}}>
+<!DOCTYPE html>
+<html>
+<body>
+
+<img id="emotion" width=90% src={{ path }} alt={{ object_id }}>
+<form>
+What emotion is it?<br>
+<input type="radio" name="emotion" id="happy" value="happy" align="center" onclick="setValue(this.value)">Happy<br>
+<input type="radio" name="emotion" id="sad" value="sad" align="center" onclick="setValue(this.value)">Sad<br>
+<input type="radio" name="emotion" id="surprise" value="surprise" align="center" onclick="setValue(this.value)">Surprise<br>
+<input type="radio" name="emotion" id="hate" value="hate" align="center" onclick="setValue(this.value)">Hate<br>
+<input type="radio" name="emotion" id="angry" value="angry" align="center" onclick="setValue(this.value)">Angry<br>
+<input type="radio" name="emotion" id="fear" value="fear" align="center" onclick="setValue(this.value)">Fear
+</form>
+<button id="submit" align="center" onclick="submit()">Submit</button>
+	
+<script src={{ jquery }}></script>
+<script>
+var clicked_emotion="";
+function setValue(value) {
+	clicked_emotion=value;
+}
+function submit() {
+	$.post(  
+  "http://112.74.204.138:5000/comment", {  
+  	emotion_id: $("#emotion").attr("alt"),  
+    emotion_type: clicked_emotion
+  }, function (data,state) {  
+  	//这里显示从服务器返回的数据  
+  	alert(data);  
+  	//这里显示返回的状态  
+  	alert(state);  
+  },  
+  "json"  
+  ) 
+}
+</script>
+
+</body>
+</html>

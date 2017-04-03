@@ -1,15 +1,17 @@
 from flask import Flask, request, render_template
-import requests, os, werkzeug, json, time
+import requests, os, werkzeug, json, time, flask
 from PIL import Image, ImageDraw
-from pymongo import MongoClient
+from pymongo import MongoClient, ReturnDocument
 from time import clock
 from bson.objectid import ObjectId
+import os.path
 
 app = Flask(__name__)
-UPLOAD_FOLDER='/root/image'
+UPLOAD_FOLDER='/var/www/emotionrecognizer_backend_microsoft/static'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 basedir = os.path.abspath(os.path.dirname(__file__))
 ALLOWED_EXTENSIONS = set(['png','jpg','JPG','PNG'])
+ROOT_URL='localhost:5000'
 
 client = MongoClient('127.0.0.1')
 db = client.get_database('emotion')
@@ -31,10 +33,20 @@ error_code = 430
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.',1)[1] in ALLOWED_EXTENSIONS
 
-@app.route('/share/<document_id>')
+@app.route('/share/<document_id>', methods=['GET'])
 def share(document_id):
     document = collection.find_one({"_id":ObjectId(document_id)})
-    return render_template('static/comment.html', path = document['raw']) if not document else 'hello'
+    if document:
+        return render_template('comment.html', path=flask.url_for('static', filename=os.path.basename(document['raw'])), object_id=document_id, jquery=flask.url_for('static', filename='jquery-3.2.0.min.js')) 
+
+@app.route('/comment', methods=['POST'])
+def comment():
+    if request.form['emotion_id'] and request.form['emotion_type']:
+        document_id, emotion_type = request.form['emotion_id'], request.form['emotion_type']
+        return str(collection.find_one_and_update(
+            {"_id": ObjectId(document_id)},
+            {"$inc": {emotion_type: 1}},
+            return_document=ReturnDocument.AFTER))
 
 @app.route('/recognize', methods=['POST'])
 def recognize():
